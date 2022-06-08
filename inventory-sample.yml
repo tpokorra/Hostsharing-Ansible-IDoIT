@@ -7,3 +7,5 @@ idoit:
       domain: idoit.example.org
       user: idoit
       password: testpassw0rd_changeme
+
+      idoit_release: 1.18.1

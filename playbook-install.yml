@@ -13,36 +13,38 @@
   #################################
   ## create directories
   #################################
-  - name: create directory etc
+  - name: create directory idoit
     become: yes
     become_user: "{{pac}}-{{user}}"
     file:
-      path: "/home/pacs/{{pac}}/users/{{user}}/etc"
+      path: "/home/pacs/{{pac}}/users/{{user}}/idoit"
       state: directory
-  - name: create directory var/tmp
+
+  - name: create directory upload files
     become: yes
     become_user: "{{pac}}-{{user}}"
     file:
-      path: "/home/pacs/{{pac}}/users/{{user}}/var/tmp"
+      path: "/home/pacs/{{pac}}/users/{{user}}/upload/files"
       state: directory
-  - name: create directory var/log
+
+  - name: create directory upload images
     become: yes
     become_user: "{{pac}}-{{user}}"
     file:
-      path: "/home/pacs/{{pac}}/users/{{user}}/var/log"
-      state: directory
-  - name: create directory var/run
-    become: yes
-    become_user: "{{pac}}-{{user}}"
-    file:
-      path: "/home/pacs/{{pac}}/users/{{user}}/var/run"
+      path: "/home/pacs/{{pac}}/users/{{user}}/upload/images"
       state: directory
 
   ##################################
   ## install idoit
   ##################################
 
-  # TODO
+  - name: download and install zip file
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    unarchive:
+      src: https://sourceforge.net/projects/i-doit/files/i-doit/{{idoit_release}}/idoit-open-{{idoit_release}}.zip/download
+      remote_src: yes
+      dest: /home/pacs/{{pac}}/users/{{user}}/idoit
 
   ##################################
   ## configuration
@@ -59,5 +61,35 @@
   ########################
   ## setup the apache site
   ########################
-
-  # TODO
+  - name: Check for htdocs-ssl directory
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    stat:
+      path: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl"
+    register: htdocsssl
+  - name: drop htdocs-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+       path: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl"
+       state: absent
+    when: htdocsssl.stat.exists and htdocsssl.stat.isdir
+  - name: create symbolic link for htdocs-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+      src: "/home/pacs/{{pac}}/users/{{user}}/idoit"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl"
+      state: link
+  - name: upload .htaccess file
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/htaccess"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/.htaccess"
+  - name: upload php.ini file
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/php.ini"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/fastcgi-ssl/php.ini"
