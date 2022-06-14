@@ -1,0 +1,378 @@
+diff --git a/setup/install.inc.php b/setup/install.inc.php
+index 5527bcf..007101b 100644
+--- a/setup/install.inc.php
++++ b/setup/install.inc.php
+@@ -275,7 +275,7 @@ $g_config = [
+         "name"    => "Database port"
+     ],
+     "config.db.username"        => [
+-        "content" => "idoit",
++        "content" => "{{pac}}_{{user}}",
+         "name"    => "Database username"
+     ],
+     "config.db.password"        => [
+@@ -287,7 +287,7 @@ $g_config = [
+         "name"    => "Database password (retype)"
+     ],
+     "config.db.root.username"   => [
+-        "content" => "root",
++        "content" => "{{pac}}_{{user}}",
+         "name"    => "Database root username"
+     ],
+     "config.db.root.password"   => [
+@@ -297,7 +297,7 @@ $g_config = [
+     /*"config.db.root.password2"               =>
+         array("content" => "", "name" => "Database root password (retype)"),*/
+     "config.db.name"            => [
+-        "content" => "idoit_system",
++        "content" => "{{pac}}_{{user}}",
+         "name"    => "System Database Name"
+     ],
+     "config.db.config"          => [
+@@ -309,7 +309,7 @@ $g_config = [
+         "name"    => "Database mode"
+     ],
+     "config.mandant.name"       => [
+-        "content" => "idoit_data",
++        "content" => "{{pac}}_{{user}}data",
+         "name"    => "Mandator database name"
+     ],
+     "config.mandant.title"      => [
+diff --git a/setup/5_config_check.inc.php b/setup/5_config_check.inc.php
+index 9ce97c8..34b5772 100644
+--- a/setup/5_config_check.inc.php
++++ b/setup/5_config_check.inc.php
+@@ -154,191 +154,31 @@ function process_after_posttransfer()
+                 break;
+             case "config.db.root.password":
+                 $l_cached_sqlmode = '';
+-
+-                if (!empty($l_dbHost) && !empty($l_dbPort)) {
+-                    $l_dbLink = new mysqli($l_dbHost, $l_dbRootUser, $l_data["content"], "", $l_dbPort);
+-                    if (!$l_dbLink->connect_error) {
+-                        $l_success = true;
+-                        list($l_cached_sqlmode) = $l_dbLink->query("SELECT @@SESSION.sql_mode;")
+-                            ->fetch_array();
+-                        $l_dbLink->query("SET sql_mode=''");
+-
+-                        $l_mysql = [
+-                            'innodb_buffer_pool_size' => [
+-                                0,
+-                                1024
+-                            ],
+-                            'query_cache_size'        => [
+-                                0,
+-                                16
+-                            ],
+-                            'max_allowed_packet'      => [
+-                                0,
+-                                64
+-                            ],
+-                            'tmp_table_size'          => [
+-                                0,
+-                                16
+-                            ],
+-                            'query_cache_limit'       => [
+-                                0,
+-                                5
+-                            ]
+-                        ];
+-
+-                        foreach ($l_mysql as $l_mkey => $l_tmp) {
+-                            list($unused, $l_mysql[$l_mkey][0]) = $l_dbLink->query("SHOW VARIABLES LIKE '" . $l_mkey . "';")
+-                                ->fetch_array();
+-                            if (!$l_mysql[$l_mkey][0]) {
+-                                unset($l_mysql[$l_mkey]);
+-                            }
+-                        }
+-
+-                        $l_db_version = $l_dbLink->query('SELECT VERSION() AS v;')
+-                            ->fetch_assoc()['v'];
+-                        $l_is_mariadb = stripos($l_db_version, 'maria') !== false;
+-                        $l_css_class = 'stepLineStatusGood';
+-                        $l_message = 'OK';
+-
+-                        // Setting required parameters for version related checks
+-                        if ($l_is_mariadb) {
+-                            $dbTitle = 'MariaDB';
+-                            $minVersion = MARIADB_VERSION_MINIMUM;
+-                            $maxVersion = MARIADB_VERSION_MAXIMUM;
+-                            $recommendedVersion = MARIADB_VERSION_MINIMUM_RECOMMENDED;
+-                        } else {
+-                            $dbTitle = 'MySQL';
+-                            $minVersion = MYSQL_VERSION_MINIMUM;
+-                            $maxVersion = MYSQL_VERSION_MAXIMUM;
+-                            $recommendedVersion = MYSQL_VERSION_MINIMUM_RECOMMENDED;
+-                        }
+-
+-                        try {
+-                            // Necessary variables
+-                            $dbVersionCheckClass = 'stepLineStatusGood';
+-                            $dbVersionCheckMessage = 'OK';
+-
+-                            // Check whether version requirements are met
+-                            if (!checkVersion(getVersion($l_db_version), $minVersion, $maxVersion)) {
+-                                // Check version is above maximum suppoerted version
+-                                if (checkVersionIsAbove(getVersion($l_db_version), $maxVersion)) {
+-                                    $dbVersionCheckClass = 'stepLineStatusBad';
+-                                    $dbVersionCheckMessage = 'You are about to install i-doit with a MySQL/MariaDB version that is currently not officially supported. ' .
+-                                        'Please have a look at the official system requirements in the <a href="https://kb.i-doit.com/display/en/System+Requirements">Knowledge Base</a>.';
+-                                } else {
+-                                    // DB requirement is unmet!
+-                                    $dbVersionCheckClass = 'stepLineStatusBad';
+-                                    $dbVersionCheckMessage = 'Not between ' . $minVersion . ' and ' . $maxVersion . ' - ' . $recommendedVersion . ' recommended.';
+-
+-                                    // Set this to false to reache installation stop
+-                                    $l_success = false;
+-                                }
+-                            } elseif ($l_is_mariadb && version_compare($l_db_version, MARIADB_VERSION_DEPRECATED_BELOW, '<')) {
+-                                $dbVersionCheckClass = 'stepLineStatusBad';
+-                                $dbVersionCheckMessage = 'We discourage the use of ' . $dbTitle . ' version below ' . MARIADB_VERSION_DEPRECATED_BELOW . '.
+-                                    We will drop support for it in a future release.
+-                                    Please upgrade ' . $dbTitle . ' to one of the stable versions.
+-                                    We recommend version ' . $recommendedVersion . ' for the best user experience.';
+-                            }
+-                        } catch (Exception $e) {
+-                            // Database system version identification not possible
+-                            $dbVersionCheckMessage = 'Please notice that i-doit was not able to determine a valid mysql/mariadDB version information. You can check your system to identify '.
+-                                'the problem or resume the installation process on your own risk.';
+-                            $dbVersionCheckClass = 'stepLineStatusBad';
+-                        }
+-
+-                        // New checks for MySQL >= 5.6 or MariaDB >= 10.0
+-                        $s_steps .= '<tr><td></td><td class="stepLineData">' . $dbTitle . ' Version: ' . $l_db_version . '</td><td class="' . $dbVersionCheckClass . '">' . $dbVersionCheckMessage .
+-                            '</td></tr><tr><td colspan="3" class="stepLineSeperator"></td></tr>';
+-                    } else {
+-                        $l_success = false;
+-                        $l_message = "ERROR: " . $l_dbLink->connect_error;
+-                    }
+-                } else {
+-                    $l_success = false;
+-                    $l_message = "FAILED";
+-                }
+-                if ($l_data["content"] != "") {
+-                    $l_data["content"] = "*****";
+-                }
+-
++                $l_success = true;
++                $l_message = "";
+                 break;
+             case "config.db.root.password2":
+                 $l_success = true;
+                 $l_bShowError = false;
+                 break;
+             case "config.db.name":
+-                if (!$l_dbLink->connect_error) {
+-                    $l_query = $l_dbLink->query("SHOW DATABASES LIKE '" . $l_data["content"] . "'");
+-                    if ($l_query->num_rows > 0) {
+-                        $l_success = false;
+-                        $l_message = "EXISTS. PLEASE DROP IT";
+-                    } else {
+-                        $l_success = true;
+-                        $l_message = "OK";
+-                    }
+-                } else {
+-                    $l_success = false;
+-                    $l_message = "NO LINK";
+-                }
+-
++                $l_success = true;
++                $l_message = "OK";
+                 break;
+             case "config.db.config":
+ 
+-                if (!$l_dbLink->connect_error) {
+-                    $l_success = true;
+-                    $l_err = false;
+-                    $l_message = "OK";
+-
+-                    if (isset($l_mysql) && is_array($l_mysql)) {
+-                        foreach ($l_mysql as $l_mkey => $l_mconfig) {
+-                            if ($l_mconfig[0] < ($l_mconfig[1] * 1024 * 1024) && $l_mconfig[1] > 0) {
+-                                $l_err = true;
+-                                $l_data["content"] .= "<br><span style='color: #CC0000;'><strong>" . $l_mkey . "</strong> should be at least " . $l_mconfig[1] .
+-                                    "M (currently " . (number_format(floor($l_mconfig[0]) / 1024 / 1024, 2)) . "M)!</span>";
+-                            }
+-                        }
+-                    }
+-
+-                    if ($l_err) {
+-                        $l_message = "<span style='color: #CC0000;'>Warning</span>";
+-                        $l_data["content"] .= '<br /><br />You should set these database variables in your <a href="https://dev.mysql.com/doc/refman/5.7/en/option-files.html">MySQL config file (my.cnf)</a>.';
+-                    }
+-                } else {
+-                    $l_success = false;
+-                    $l_message = "NO LINK";
+-                }
++                $l_success = true;
++                $l_err = false;
++                $l_message = "OK";
+                 break;
+             case "config.db.mode":
+-                $l_data["content"] = isset($l_cached_sqlmode) ? $l_cached_sqlmode : '';
+-                if (is_object($l_dbLink) && !$l_dbLink->connect_error) {
+-                    $l_success = true;
+-                    $l_message = "OK";
+-
+-                    if ($l_cached_sqlmode != "") {
+-                        $l_message = "<span style='color: #CC0000;'>Warning</span>";
+-                        $l_data["content"] .= "<br><span style='color: #CC0000;'>Warning: MySQL/MariaDB SQL MODE is not empty. Please disable it!</span>";
+-                    }
+-                } else {
+-                    $l_success = false;
+-                    $l_message = "NO LINK";
+-                }
++                $l_success = true;
++                $l_message = "OK";
+                 break;
+             case "config.mandant.name":
+-                if (!$l_dbLink->connect_error) {
+-                    $l_query = $l_dbLink->query("SHOW DATABASES LIKE '" . $l_data["content"] . "'");
+-                    if ($l_query->num_rows > 0) {
+-                        $l_success = false;
+-                        $l_message = "EXISTS. PLEASE DROP IT";
+-                    } else {
+-                        $l_success = true;
+-                        $l_message = "OK";
+-                    }
+-                } else {
+-                    $l_success = false;
+-                    $l_message = "NO LINK";
+-                }
+-
++                $l_data["content"] = $l_dbUser."data";
++                $l_success = true;
++                $l_message = "OK";
+                 break;
+             case "config.mandant.title":
+                 if (is_string($l_data["content"]) && !empty($l_data["content"])) {
+diff --git a/setup/6_installation.inc.php b/setup/6_installation.inc.php
+index 792f379..8d60ea8 100644
+--- a/setup/6_installation.inc.php
++++ b/setup/6_installation.inc.php
+@@ -109,7 +109,9 @@ function process_after_posttransfer()
+         /* Checking database names */
+         //first, trim them
+         $g_config["config.db.name"]["content"] = trim($g_config["config.db.name"]["content"]);
++        $g_config["config.db.name"]["content"] = trim($g_config["config.db.username"]["content"]);
+         $g_config["config.mandant.name"]["content"] = trim($g_config["config.mandant.name"]["content"]);
++        $g_config["config.mandant.name"]["content"] = trim($g_config["config.db.name"]["content"]."d");
+ 
+         if ($l_nErrors == 0) {
+             /* We accept a-z, 0-9 and _ as database namens! */
+@@ -130,50 +132,10 @@ function process_after_posttransfer()
+         }
+ 
+         /* Testing existence of Databases */
+-        if ($l_nErrors == 0) {
+-            if ($g_dbLink->query("SHOW DATABASES LIKE '" . $g_config["config.db.name"]["content"] . "'")->num_rows) {
+-                ___add_status($l_status, "System database already exists!", false);
+-                $l_nErrors++;
+-            }
+-
+-            if ($g_dbLink->query("SHOW DATABASES LIKE '" . $g_config["config.mandant.name"]["content"] . "'")->num_rows) {
+-                ___add_status($l_status, "Mandator database already exists!", false);
+-                $l_nErrors++;
+-            }
+-        }
+ 
+         /* Create system DB */
+-        if ($l_nErrors == 0) {
+-            $l_ret = $g_dbLink->query("CREATE DATABASE IF NOT EXISTS " . $g_config["config.db.name"]["content"] . " DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci");
+-            if ($l_ret === false) {
+-                $l_nErrors++;
+-            }
+-            ___add_status($l_status, "Creating system database", $l_ret, $g_dbLink->error);
+-        }
+-
+-        $l_rollback[] = [
+-            "type"  => "database",
+-            "desc"  => "Dropping system database",
+-            "link"  => $g_dbLink,
+-            "query" => "DROP DATABASE IF EXISTS `" . $g_config["config.db.name"]["content"] . "`"
+-        ];
+-        $l_rollback[] = [
+-            "type"  => "database",
+-            "desc"  => "Dropping mandant database",
+-            "link"  => $g_dbLink,
+-            "query" => "DROP DATABASE IF EXISTS `" . $g_config["config.mandant.name"]["content"] . "`"
+-        ];
+ 
+         /* Create mandator DB */
+-        if ($l_nErrors == 0) {
+-            $l_ret = $g_dbLink->query("CREATE DATABASE IF NOT EXISTS `" . $g_config["config.mandant.name"]["content"] .
+-                "` DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci");
+-            if ($l_ret === false) {
+-                $l_nErrors++;
+-            }
+-            ___add_status($l_status, "Creating mandator database", $l_ret, $g_dbLink->error);
+-        }
+-
+         $l_out = false;
+ 
+         /* Import system DB */
+@@ -264,64 +226,8 @@ function process_after_posttransfer()
+         }
+ 
+         /* Set rights for system database (localhost) */
+-        if ($l_nErrors == 0) {
+-            /*
+-            $l_grant = "GRANT " . $g_settings["mysqlPrivileges"] . " " .
+-                    "ON " . $g_config["config.db.name"]["content"] . ".* " .
+-                    "TO '" . $g_config["config.db.username"]["content"] . "'@'%'";
+-            if ($g_config["config.db.password"]["content"] != "")
+-            {
+-                $l_grant .= " IDENTIFIED BY '" . $g_config["config.db.password"]["content"] . "'";
+-            }
+-            $l_grant .= ";";
+-            $l_ret = $g_dbLink->query($l_grant);
+-            */
+-
+-            $l_grant = "GRANT " . $g_settings["mysqlPrivileges"] . " " . "ON " . $g_config["config.db.name"]["content"] . ".* " . "TO '" .
+-                $g_config["config.db.username"]["content"] . "'@'" . $grantToHost . "'";
+-            if ($g_config["config.db.password"]["content"] != "") {
+-                $l_grant .= " IDENTIFIED BY '" . $g_config["config.db.password"]["content"] . "'";
+-            }
+-            $l_grant .= ";";
+-            $l_ret = $g_dbLink->query($l_grant);
+-
+-            if ($l_ret === false) {
+-                $l_nErrors++;
+-            }
+-            ___add_status($l_status, "Adding system database privileges to " . $g_config["config.db.username"]["content"], $l_ret, $g_dbLink->error);
+-        }
+ 
+         /* Set rights for mandator database (localhost) */
+-        if ($l_nErrors == 0) {
+-            /*
+-            $l_grant = "GRANT " . $g_settings["mysqlPrivileges"] . " " .
+-                    "ON " . $g_config["config.mandant.name"]["content"] . ".* " .
+-                    //"ON *.* ".
+-                    "TO '" . $g_config["config.db.username"]["content"] . "'@'%'";
+-            if ($g_config["config.db.username"]["content"] != "")
+-            {
+-                $l_grant .= " IDENTIFIED BY '" . $g_config["config.db.password"]["content"] . "'";
+-            }
+-            $l_grant .= ";";
+-            $l_ret = $g_dbLink->query($l_grant);
+-            */
+-
+-            $l_grant = "GRANT " . $g_settings["mysqlPrivileges"] . " " . "ON " . $g_config["config.mandant.name"]["content"] . ".* " . //"ON *.* ".
+-                "TO '" . $g_config["config.db.username"]["content"] . "'@'" . $grantToHost . "'";
+-            if ($g_config["config.db.username"]["content"] != "") {
+-                $l_grant .= " IDENTIFIED BY '" . $g_config["config.db.password"]["content"] . "'";
+-            }
+-            $l_grant .= ";";
+-            $l_ret = $g_dbLink->query($l_grant);
+-
+-            if ($l_ret === false) {
+-                $l_nErrors++;
+-            }
+-            ___add_status($l_status, "Adding mandator database privileges to " . $g_config["config.db.username"]["content"], $l_ret, $g_dbLink->error);
+-
+-            $l_flush = "FLUSH PRIVILEGES;";
+-            $g_dbLink->query($l_flush);
+-        }
+         $g_config["config.security.passwords_encryption_method"]["content"] = defined('PASSWORD_ARGON2I')?'argon2i':'bcrypt';
+         /* Write configuration file */
+         if ($l_nErrors == 0) {

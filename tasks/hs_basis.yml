@@ -6,8 +6,11 @@
   hsuser.js: name="{{pac}}-{{user}}" password="{{password}}" exists="true"
 - name: setup domain
   hsdomain.js: name="{{domain}}" owner="{{pac}}-{{user}}" exists="true"
-- name: setup database
-  hsdatabase.js: name="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="true"
+- name: setup system database
+  hsdatabase.js: name="{{pac}}_{{user}}" user="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="true"
+- name: setup mandant database
+  # the database name must not get too long, therefore just add d instead of data
+  hsdatabase.js: name="{{pac}}_{{user}}d" user="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="true"
 
 - name: Sleep to avoid issue invalid user for temporary files
   pause:

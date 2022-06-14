@@ -46,11 +46,27 @@
       remote_src: yes
       dest: /home/pacs/{{pac}}/users/{{user}}/idoit
 
+  - name: upload installation patch
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/installation_hs_db.patch" src="templates/installation_hs_db.patch" mode=0600
+
+  - name: patch the installation script to work without database root permissions
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    shell: |
+      patch -p1 < /home/pacs/{{pac}}/users/{{user}}//installation_hs_db.patch || exit -1
+      touch /home/pacs/{{pac}}/users/{{user}}/.ansible_installation_patched
+    args:
+      executable: /bin/bash
+      chdir: "/home/pacs/{{pac}}/users/{{user}}/idoit"
+      creates: "/home/pacs/{{pac}}/users/{{user}}/.ansible_installation_patched"
+
   ##################################
   ## configuration
   ##################################
 
-  # TODO
+  # TODO: src/config.inc.php
 
   ######################
   ## initialise instance

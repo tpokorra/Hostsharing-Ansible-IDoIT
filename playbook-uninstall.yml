@@ -10,7 +10,9 @@
   #################################
   - name: drop domain
     hsdomain.js: name="{{domain}}" owner="{{pac}}-{{user}}" exists="false"
-  - name: drop database
-    hsdatabase.js: name="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="false"
+  - name: drop mandant database
+    hsdatabase.js: name="{{pac}}_{{user}}d" user="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="false"
+  - name: drop system database
+    hsdatabase.js: name="{{pac}}_{{user}}" user="{{pac}}_{{user}}" password="{{password}}" instance="mysql" exists="false"
   - name: remove user
     hsuser.js: name="{{pac}}-{{user}}" password="{{password}}" exists="false"
